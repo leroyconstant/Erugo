@@ -55,6 +55,11 @@ assert request("POST", "/api/tusd-hooks", {"Type": "post-terminate"})[0] == 404
 assert request("POST", "/files/", b"", headers={"Tus-Resumable": "1.0.0", "Upload-Length": "4"})[0] == 401
 
 
+for extension in [{"Upload-Concat": "partial"}, {"Upload-Defer-Length": "1"}]:
+    status, _, body = request("POST", "/files/", b"", owner, {"Tus-Resumable": "1.0.0", **extension})
+    assert status == 400, (status, body)
+
+
 def upload(payload, filename, bundle=False):
     metadata = "filename " + base64.b64encode(filename.encode()).decode()
     if bundle:

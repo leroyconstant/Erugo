@@ -57,6 +57,12 @@ class TusdHooksController extends Controller
     protected function preCreate(Request $request, array $payload)
     {
         try {
+            $upload = $payload['Event']['Upload'] ?? [];
+            $headers = $payload['Event']['HTTPRequest']['Header'] ?? [];
+            if (!empty($upload['IsPartial']) || !empty($upload['IsFinal']) || !empty($upload['PartialUploads'])
+                || !empty($upload['SizeIsDeferred']) || isset($headers['Upload-Concat']) || isset($headers['Upload-Defer-Length'])) {
+                return response()->json(['message' => 'Unsupported upload extension'], 400);
+            }
             // Extract authorization header from the upload request metadata
             $authHeader = $payload['Event']['HTTPRequest']['Header']['Authorization'][0] ?? null;
 

@@ -23,6 +23,11 @@ class UploadsController extends Controller
   /** Called by Caddy before forwarding any request to tusd. */
   public function authorizeTus(Request $request)
   {
+    // The application uses single-owner uploads with a known length. Do not
+    // allow tus extensions to reference other uploads or bypass size checks.
+    if ($request->hasHeader('Upload-Concat') || $request->hasHeader('Upload-Defer-Length')) {
+      return response()->json(['message' => 'Unsupported upload extension'], 400);
+    }
     $method = $request->header('X-Forwarded-Method', '');
     $path = parse_url($request->header('X-Forwarded-Uri', ''), PHP_URL_PATH);
     if (!in_array($method, ['POST', 'HEAD', 'PATCH', 'DELETE', 'OPTIONS'], true)) {

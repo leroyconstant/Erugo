@@ -187,4 +187,15 @@ class AuthorizationSecurityTest extends TestCase
         $this->withHeaders(['X-Forwarded-Method' => 'POST', 'X-Forwarded-Uri' => '/files/'])
             ->getJson('/api/uploads/authorize')->assertForbidden();
     }
+
+    public function test_concat_and_deferred_length_cannot_bypass_upload_ownership_or_quota(): void
+    {
+        $this->bearer(User::factory()->create());
+        $base = ['X-Forwarded-Method' => 'POST', 'X-Forwarded-Uri' => '/files/'];
+        $this->withHeaders($base + ['Upload-Concat' => 'final;/files/' . str_repeat('a', 32)])
+            ->getJson('/api/uploads/authorize')->assertStatus(400);
+        $this->withoutHeader('Upload-Concat');
+        $this->withHeaders($base + ['Upload-Defer-Length' => '1'])
+            ->getJson('/api/uploads/authorize')->assertStatus(400);
+    }
 }
