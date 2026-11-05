@@ -198,4 +198,19 @@ class AuthorizationSecurityTest extends TestCase
         $this->withHeaders($base + ['Upload-Defer-Length' => '1'])
             ->getJson('/api/uploads/authorize')->assertStatus(400);
     }
+
+    public function test_revocation_is_permanent_when_account_flags_return_to_previous_values(): void
+    {
+        foreach (['admin', 'active'] as $flag) {
+            $user = User::factory()->create(['admin' => false, 'active' => true]);
+            $access = app(TokenService::class)->issue($user);
+            $refresh = app(TokenService::class)->issue($user, 'refresh');
+            $original = $user->$flag;
+            $user->update([$flag => !$original]);
+            $user->update([$flag => $original]);
+            $this->assertNull(app(TokenService::class)->authenticate($access));
+            $this->assertNull(app(TokenService::class)->authenticate($refresh, ['refresh']));
+            $this->assertNotNull(app(TokenService::class)->authenticate(app(TokenService::class)->issue($user)));
+        }
+    }
 }

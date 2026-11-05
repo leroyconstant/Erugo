@@ -63,9 +63,20 @@ class User extends Authenticatable implements JWTSubject
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::updating(function (User $user) {
+            if ($user->isDirty(['password', 'active', 'admin', 'must_change_password'])) {
+                // A nonce makes revocation permanent even if account flags later
+                // return to their previous values. Reuse the hidden existing column.
+                $user->remember_token = \Illuminate\Support\Str::random(60);
+            }
+        });
+    }
+
     public function sessionVersion(): string
     {
-        return hash_hmac('sha256', (string) $this->password . '|' . (int) $this->active
+        return hash_hmac('sha256', (string) $this->remember_token . '|' . (string) $this->password . '|' . (int) $this->active
             . '|' . (int) $this->admin . '|' . (int) $this->must_change_password,
             (string) config('app.key'));
     }
