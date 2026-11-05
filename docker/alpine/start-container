@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 echo "Erugo is starting..."
 echo "================================================"
@@ -49,11 +50,14 @@ if [ -n "$APP_VERSION" ] && [ "$APP_VERSION" != "unknown" ]; then
     fi
 fi
 
+# A plain docker run has no bind mount to create this directory.
+mkdir -p /var/www/html/storage
+
 # First time setup check
 if [ ! -f /var/www/html/storage/.setup-lock ]; then
     echo "[First time setup] Copying storage skeleton contents..."
-    rm -rf /var/www/html/storage/*
-    cp -r /var/www/html/storage_skell/* /var/www/html/storage/
+    # Preserve existing uploads, keys and database if the marker was lost.
+    cp -rn /var/www/html/storage_skell/. /var/www/html/storage/
     touch /var/www/html/storage/.setup-lock
 else
     echo "Setup already completed, skipping..."

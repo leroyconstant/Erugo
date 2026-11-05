@@ -12,7 +12,7 @@ storage/framework/cache/data/*
 storage/framework/sessions/*
 storage/framework/views/*
 storage/app.key
-storage/jwt.key
+storage/jwt.secret
 storage/instance.guid
 .phpunit.cache
 core

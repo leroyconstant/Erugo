@@ -58,8 +58,8 @@ jobs:
           docker run -d --name erugo-security -p 127.0.0.1:9998:80 \
             -e APP_ENV=production -e APP_DEBUG=false erugo-security:test
           for attempt in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:9998/api/health; then
-              curl -fsS http://127.0.0.1:9998/ > /dev/null
+            if curl --max-time 5 -fsS http://127.0.0.1:9998/api/health; then
+              curl --max-time 5 -fsS http://127.0.0.1:9998/ > /dev/null
               exit 0
             fi
             sleep 2

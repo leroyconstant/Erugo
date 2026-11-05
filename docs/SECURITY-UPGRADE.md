@@ -8,9 +8,9 @@ Production installs exclude development dependencies and fail if Composer report
 
 ## Upgrade an existing Docker installation
 
-1. Back up the **entire existing storage directory**, including hidden files, `app.key`, `jwt.key`, `.setup-lock`, database files, uploads and templates. Stop the application for a consistent SQLite backup. Keep the old image for rollback.
+1. Back up the **entire existing storage directory**, including hidden files, `app.key`, `jwt.secret`, `.setup-lock`, database files, uploads and templates. Stop the application for a consistent SQLite backup. Keep the old image for rollback.
 2. Fetch the security branch (or `main` after the pull request is merged).
-3. Point `ERUGO_STORAGE_PATH` to the **same absolute storage path used by your existing container**. Do not use the new default directory when migrating. The entrypoint initializes new storage when `.setup-lock` is absent.
+3. Point `ERUGO_STORAGE_PATH` to the **same absolute storage path used by your existing container**. Do not use the new default directory when migrating. The entrypoint copies missing skeleton files when `.setup-lock` is absent and preserves existing storage contents.
 4. Build and recreate the container:
 
 ```sh
