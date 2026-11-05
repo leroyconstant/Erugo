@@ -67,7 +67,13 @@ class BundleExtractor
             if (!$manifestStat || $manifestStat['size'] > config('erugo.bundle_manifest_max_bytes')) {
                 throw new RuntimeException('Missing or oversized bundle manifest');
             }
-            $manifest = json_decode($zip->getFromName('__erugo_manifest__.json'), true, 64, JSON_THROW_ON_ERROR);
+            $manifestLimit = (int) config('erugo.bundle_manifest_max_bytes');
+            $manifestJson = $zip->getFromName('__erugo_manifest__.json', $manifestLimit + 1);
+            if (!is_string($manifestJson) || strlen($manifestJson) > $manifestLimit
+                || strlen($manifestJson) !== $manifestStat['size']) {
+                throw new RuntimeException('Invalid or oversized bundle manifest');
+            }
+            $manifest = json_decode($manifestJson, true, 64, JSON_THROW_ON_ERROR);
             if (!is_array($manifest['files'] ?? null) || count($manifest['files']) > $maxFiles || !$manifest['files']) {
                 throw new RuntimeException('Invalid bundle manifest');
             }

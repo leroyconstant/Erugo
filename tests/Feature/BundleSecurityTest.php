@@ -94,4 +94,12 @@ class BundleSecurityTest extends TestCase
         $this->expectException(RuntimeException::class);
         app(BundleExtractor::class)->extract($path, $this->root . '/out');
     }
+
+    public function test_manifest_size_is_bounded_before_parsing(): void
+    {
+        config(['erugo.bundle_manifest_max_bytes' => 32]);
+        $path = $this->archive(['a.txt' => 'a'], [['path' => 'a.txt', 'originalName' => 'a.txt']]);
+        $this->expectException(RuntimeException::class);
+        app(BundleExtractor::class)->extract($path, $this->root . '/out');
+    }
 }
