@@ -3,10 +3,34 @@
 namespace App\Services;
 
 use App\Models\Setting;
+use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 
 class SettingsService
 {
+  /** Settings required by the public UI, resolved for each application instance. */
+  public function getFrontendSettings(): array
+  {
+    $settings = Setting::whereLike('group', 'ui%')
+      ->orWhere('key', 'default_language')
+      ->orWhere('key', 'show_language_selector')
+      ->orWhere('key', 'allow_reverse_shares')
+      ->orWhere('key', 'max_expiry_time')
+      ->orWhere('key', 'default_expiry_time')
+      ->get();
+
+    $indexedSettings = [];
+    foreach ($settings as $setting) {
+      $indexedSettings[$setting->key] = $this->convertToCorrectType($setting->value);
+    }
+
+    $indexedSettings['setup_needed'] = !User::exists();
+    $indexedSettings['api_url'] = env('APP_URL');
+    $indexedSettings['version'] = config('app.version');
+
+    return $indexedSettings;
+  }
+
   private const CACHE_KEY = 'settings_all';
 
   /**

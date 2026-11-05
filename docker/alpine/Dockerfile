@@ -1,13 +1,18 @@
 # Build Stage for PHP dependencies
-FROM php:8.3-cli-alpine AS composer
+FROM alpine:3.24 AS composer
 WORKDIR /app
-RUN apk add --no-cache git unzip \
-    && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+RUN apk add --no-cache git unzip "php83>=8.3.36" php83-phar php83-openssl \
+    php83-curl php83-mbstring php83-dom php83-xml php83-xmlwriter \
+    php83-ctype php83-tokenizer php83-fileinfo php83-pdo php83-pdo_sqlite \
+    php83-session php83-sodium php83-iconv php83-zip \
+    && ln -s /usr/bin/php83 /usr/bin/php
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 COPY . .
-RUN composer install --no-interaction --optimize-autoloader
+RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader \
+    && composer audit --no-dev --locked
 
 # Build Stage for Node.js dependencies and assets
-FROM node:20-alpine AS node
+FROM node:24-alpine3.24 AS node
 WORKDIR /app
 COPY . .
 
@@ -16,7 +21,7 @@ RUN npm ci && \
     && rm -rf node_modules
 
 # Final production image
-FROM alpine:3.19
+FROM alpine:3.24
 
 LABEL maintainer="Dean Ward"
 
@@ -34,8 +39,8 @@ ENV SUPERVISOR_PHP_FPM_COMMAND="/usr/sbin/php-fpm83 -F"
 ENV SUPERVISOR_CADDY_COMMAND="/usr/sbin/caddy run --config /etc/caddy/Caddyfile"
 ENV SUPERVISOR_PHP_USER="erugo"
 
-# Enable community repository for PHP packages
-RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.19/community" >> /etc/apk/repositories
+# Use the maintained Alpine community repository for PHP packages.
+RUN sed -i 's|http://|https://|g' /etc/apk/repositories
 
 # Install production requirements
 RUN apk add --no-cache \
@@ -45,7 +50,7 @@ RUN apk add --no-cache \
     supervisor \
     cronie \
     ffmpeg \
-    php83 \
+    "php83>=8.3.36" \
     php83-pdo_pgsql \
     php83-pdo_sqlite \
     php83-gd \
@@ -68,12 +73,19 @@ RUN apk add --no-cache \
     php83-dom \
     php83-tokenizer \
     php83-fileinfo \
+    php83-ctype \
+    php83-session \
+    php83-simplexml \
+    php83-xmlwriter \
+    php83-sodium \
+    php83-iconv \
     tzdata \
     libcap \
     zip \
     php83-fpm \
     caddy \
     && ln -s /usr/bin/php83 /usr/bin/php \
+    && php -r 'exit(version_compare(PHP_VERSION, "8.3.36", ">=") ? 0 : 1);' \
     && rm -rf /var/cache/apk/*
 
 # Download and install tusd for the correct architecture
