@@ -514,6 +514,7 @@ export const logout = async () => {
   try {
     await fetch(`${apiUrl}/api/auth/logout`, {
       method: 'POST',
+      headers: store.jwt ? { Authorization: `Bearer ${store.jwt}` } : {},
       credentials: 'include'
     })
   } catch (error) {

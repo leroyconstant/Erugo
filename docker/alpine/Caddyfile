@@ -51,11 +51,18 @@
     }
     header @user_assets Cache-Control "public, max-age=300, must-revalidate"
 
-    # Proxy tusd uploads - must be handled before Laravel catches it
+    # Internal hooks are never reachable through the public listener.
+    handle /api/tusd-hooks {
+        respond 404
+    }
+
     handle /files/* {
-        reverse_proxy localhost:8080 {
-            header_up X-Forwarded-Proto {header.X-Forwarded-Proto}
-            header_up X-Forwarded-Host {header.X-Forwarded-Host}
+        route {
+            forward_auth 127.0.0.1:80 {
+                uri /api/uploads/authorize
+                header_up Accept application/json
+            }
+            reverse_proxy 127.0.0.1:8080
         }
     }
 
@@ -71,5 +78,18 @@
         
         # Enable PHP processing
         php_fastcgi unix//run/php/php-fpm.sock
+    }
+}
+# tusd alone calls this loopback listener. No port is published by Docker.
+http://127.0.0.1:8081 {
+    bind 127.0.0.1
+    root * /var/www/html/public
+    handle /api/tusd-hooks {
+        php_fastcgi unix//run/php/php-fpm.sock {
+            header_up X-Erugo-Hook-Secret {$ERUGO_TUSD_HOOK_SECRET}
+        }
+    }
+    handle {
+        respond 404
     }
 }

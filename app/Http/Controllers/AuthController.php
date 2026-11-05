@@ -15,6 +15,7 @@ use App\Jobs\sendEmail;
 use Illuminate\Auth\Events\PasswordReset;
 use App\Models\ReverseShareInvite;
 use Illuminate\Support\Facades\Crypt;
+use App\Services\TokenService;
 
 
 class AuthController extends Controller
@@ -38,8 +39,11 @@ class AuthController extends Controller
         }
 
         $credentials = $request->only('email', 'password');
+        $credentials['active'] = true;
 
-        Auth::attempt($credentials);
+        if (!Auth::attempt($credentials)) {
+            return response()->json(['message' => 'Invalid credentials'], 401);
+        }
         $user = Auth::user();
 
 
@@ -59,7 +63,7 @@ class AuthController extends Controller
         }
 
         //get the user from the token
-        $user = Auth::setToken($refreshToken)->user();
+        $user = app(TokenService::class)->authenticate($refreshToken, ['refresh']);
 
         if (!$user) {
             return response()->json([
@@ -74,11 +78,11 @@ class AuthController extends Controller
     //logout the user
     public function logout()
     {
-        //invalidate the token
-        Auth::logout();
+        app(TokenService::class)->invalidate(request()->bearerToken());
+        app(TokenService::class)->invalidate(request()->cookie('refresh_token'));
 
         //clear the refresh_token cookie
-        $cookie = cookie('refresh_token', '', 0, null, null, false, true);
+        $cookie = app(TokenService::class)->forgetCookie();
         return response()->json([
             'status' => 'success',
             'message' => 'Logout successful'
@@ -103,7 +107,7 @@ class AuthController extends Controller
 
         $token = Crypt::decryptString($request->token);
 
-        $user = Auth::setToken($token)->user();
+        $user = app(TokenService::class)->authenticate($token, ['invite']);
 
         if (!$user) {
             return response()->json([
@@ -138,26 +142,18 @@ class AuthController extends Controller
         $invite->markAsUsed();
 
         //invalidate the token
-        auth()->invalidate();
+        app(TokenService::class)->invalidate($token);
 
         return $this->respondWithToken($user);
     }
 
     private function respondWithToken($user)
     {
-        $token = Auth::login($user);
-
-        if (!$token) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Unauthorized'
-            ], 401);
+        if (!$user || !$user->active) {
+            return response()->json(['message' => 'Account unavailable'], 401);
         }
-
-        $twentyFourHours = 60 * 60 * 24;
-        $refreshToken = Auth::setTTL($twentyFourHours)->tokenById($user->id);
-
-        $cookie = cookie('refresh_token', $refreshToken, $twentyFourHours, null, null, false, true);
+        $token = app(TokenService::class)->issue($user);
+        $cookie = app(TokenService::class)->refreshCookie($user);
 
         return response()->json([
             'status' => 'success',
@@ -165,7 +161,7 @@ class AuthController extends Controller
             'data' => [
                 'access_token' => $token,
                 'token_type' => 'Bearer',
-                'expires_in' => Auth::factory()->getTTL() * 60,
+                'expires_in' => 3600,
                 'guest' => $user->is_guest
             ]
         ])->withCookie($cookie);
@@ -231,17 +227,16 @@ class AuthController extends Controller
                 $user->forceFill([
                     'password' => Hash::make($password),
                     'remember_token' => Str::random(60),
+                    'must_change_password' => false,
                 ])->save();
 
                 event(new PasswordReset($user));
             }
         );
 
-        $twentyFourHours = 60 * 60 * 24;
         if ($status === Password::PASSWORD_RESET) {
             $user = User::where('email', $request->email)->first();
-            $refreshToken = Auth::setTTL($twentyFourHours)->tokenById($user->id);
-            $cookie = cookie('refresh_token', $refreshToken, $twentyFourHours, null, null, false, true);
+            $cookie = $user->active ? app(TokenService::class)->refreshCookie($user) : app(TokenService::class)->forgetCookie();
             return response()->json([
                 'status' => 'success',
                 'message' => 'Password reset successfully'

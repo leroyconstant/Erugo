@@ -22,6 +22,18 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        \Illuminate\Support\Facades\RateLimiter::for('login', function ($request) {
+            return [
+                \Illuminate\Cache\RateLimiting\Limit::perMinute(30)->by('login-ip:' . $request->ip()),
+                \Illuminate\Cache\RateLimiting\Limit::perMinute(5)->by('login-account:' . hash('sha256', strtolower((string) $request->input('email')))),
+            ];
+        });
+        \Illuminate\Support\Facades\RateLimiter::for('auth-sensitive', function ($request) {
+            return [
+                \Illuminate\Cache\RateLimiting\Limit::perMinute(20)->by($request->route()->getName() . ':' . $request->ip()),
+                \Illuminate\Cache\RateLimiting\Limit::perMinute(5)->by($request->route()->getName() . ':' . hash('sha256', strtolower((string) $request->input('email')))),
+            ];
+        });
         // Use a view composer for email templates so settings are loaded fresh each time.
         // This is important for queue workers which are long-running processes -
         // View::share() would capture stale values from when the worker started.

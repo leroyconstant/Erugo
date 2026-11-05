@@ -26,6 +26,10 @@ echo "================================================"
 export APP_URL=/
 export ASSET_URL=/
 
+# A per-container secret authenticates hooks on the loopback-only listener.
+export ERUGO_TUSD_HOOK_SECRET="${ERUGO_TUSD_HOOK_SECRET:-$(php -r 'echo bin2hex(random_bytes(32));')}"
+
+
 # Ensure storage directories exist (for mounted volumes)
 echo "Ensuring storage directories exist..."
 mkdir -p /var/www/html/storage/app/private

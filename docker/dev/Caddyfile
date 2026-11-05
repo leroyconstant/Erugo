@@ -71,26 +71,18 @@
         reverse_proxy localhost:5173
     }
 
-    # Proxy tusd uploads - must be handled before Laravel catches it
+    # Internal hooks are never reachable through the public listener.
+    handle /api/tusd-hooks {
+        respond 404
+    }
+
     handle /files/* {
-        # CORS headers for tus uploads
-        header {
-            Access-Control-Allow-Origin *
-            Access-Control-Allow-Methods "POST, GET, OPTIONS, PATCH, DELETE, HEAD"
-            Access-Control-Allow-Headers "Authorization, Content-Type, Upload-Length, Upload-Offset, Tus-Resumable, Upload-Metadata, Upload-Defer-Length, Upload-Concat, Upload-Incomplete, Upload-Draft-Interop-Version, X-Requested-With, X-Request-ID, X-HTTP-Method-Override"
-            Access-Control-Expose-Headers "Upload-Offset, Location, Upload-Length, Tus-Version, Tus-Resumable, Tus-Max-Size, Tus-Extension, Upload-Metadata, Upload-Defer-Length, Upload-Concat, Upload-Incomplete, Upload-Draft-Interop-Version"
-            Access-Control-Max-Age "86400"
-        }
-        
-        # Handle preflight OPTIONS requests
-        @options method OPTIONS
-        handle @options {
-            respond 204
-        }
-        
-        reverse_proxy localhost:8080 {
-            header_up X-Forwarded-Proto {header.X-Forwarded-Proto}
-            header_up X-Forwarded-Host {header.X-Forwarded-Host}
+        route {
+            forward_auth 127.0.0.1:80 {
+                uri /api/uploads/authorize
+                header_up Accept application/json
+            }
+            reverse_proxy 127.0.0.1:8080
         }
     }
 
@@ -109,3 +101,17 @@
     }
 }
 
+
+# tusd alone calls this loopback listener. No port is published by Docker.
+http://127.0.0.1:8081 {
+    bind 127.0.0.1
+    root * /var/www/html/public
+    handle /api/tusd-hooks {
+        php_fastcgi unix//run/php/php-fpm.sock {
+            header_up X-Erugo-Hook-Secret {$ERUGO_TUSD_HOOK_SECRET}
+        }
+    }
+    handle {
+        respond 404
+    }
+}

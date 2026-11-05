@@ -142,7 +142,7 @@ class SharesController extends Controller
       if (!$refreshToken) {
         return false;
       }
-      $user = Auth::setToken($refreshToken)->user();
+      $user = app(\App\Services\TokenService::class)->authenticate($refreshToken, ['refresh']);
 
 
       if (!$user) {

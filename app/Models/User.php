@@ -11,6 +11,8 @@ use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
 
 class User extends Authenticatable implements JWTSubject
 {
+    protected $attributes = ['active' => true, 'admin' => false, 'must_change_password' => false, 'is_guest' => false];
+
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
 
@@ -54,7 +56,18 @@ class User extends Authenticatable implements JWTSubject
             'email_verified_at' => 'datetime',
             'email_verification_code_expires_at' => 'datetime',
             'password' => 'hashed',
+            'active' => 'boolean',
+            'admin' => 'boolean',
+            'must_change_password' => 'boolean',
+            'is_guest' => 'boolean',
         ];
+    }
+
+    public function sessionVersion(): string
+    {
+        return hash_hmac('sha256', (string) $this->password . '|' . (int) $this->active
+            . '|' . (int) $this->admin . '|' . (int) $this->must_change_password,
+            (string) config('app.key'));
     }
 
     public function getJWTIdentifier()
@@ -65,6 +78,8 @@ class User extends Authenticatable implements JWTSubject
     public function getJWTCustomClaims()
     {
         return [
+            'sv' => $this->sessionVersion(),
+            'kind' => 'access',
             'admin' => $this->admin,
             'active' => $this->active,
             'must_change_password' => $this->must_change_password,

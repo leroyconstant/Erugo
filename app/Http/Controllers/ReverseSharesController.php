@@ -80,7 +80,8 @@ class ReverseSharesController extends Controller
             $guestUserId = $guestUser->id;
 
             // Generate a token only for guest users
-            $token = auth()->tokenById($guestUser->id);
+            $guestUser->refresh();
+            $token = app(\App\Services\TokenService::class)->issue($guestUser, 'invite', 7 * 1440);
             $encryptedToken = Crypt::encryptString($token);
         }
 

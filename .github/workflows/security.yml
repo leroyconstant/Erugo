@@ -21,7 +21,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: mbstring, dom, xml, xmlwriter, pdo_sqlite, curl, sodium
+          extensions: mbstring, dom, xml, xmlwriter, pdo_sqlite, curl, sodium, zip
           coverage: none
           tools: composer:v2
       - run: composer validate --strict
@@ -72,6 +72,8 @@ jobs:
           done
           docker logs erugo-security
           exit 1
+      - name: Test upload security through Caddy and tusd
+        run: python3 scripts/security-container-smoke.py
       - name: Container logs
         if: failure()
         run: docker logs erugo-security || true
@@ -109,7 +111,6 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=latest
             type=sha,format=long,prefix=sha-
           labels: |
             org.opencontainers.image.title=Erugo
@@ -129,5 +130,16 @@ jobs:
             VERSION=sha-${{ github.sha }}
           cache-from: type=gha,scope=ghcr
           cache-to: type=gha,scope=ghcr,mode=max
+      - name: Promote the current main commit to latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          current_main=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          if [ "$current_main" = "$GITHUB_SHA" ]; then
+            docker buildx imagetools create -t ghcr.io/leroyconstant/erugo:latest "ghcr.io/leroyconstant/erugo@$IMAGE_DIGEST"
+          else
+            echo "Newer main commit exists; keeping this image under its source-commit tag only."
+          fi
       - name: Verify published manifest
         run: docker buildx imagetools inspect ghcr.io/leroyconstant/erugo@${{ steps.build.outputs.digest }}

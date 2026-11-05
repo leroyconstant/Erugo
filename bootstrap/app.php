@@ -12,6 +12,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->api(append: [\App\Http\Middleware\EnsureAccountState::class]);
+        $middleware->appendToPriorityList(
+            \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \App\Http\Middleware\EnsureAccountState::class
+        );
         $middleware->encryptCookies(except: [
             'refresh_token',
         ]);
