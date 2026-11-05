@@ -162,7 +162,7 @@ class ExternalAuthController extends Controller
             return null;
         }
 
-        return Auth::setToken(urldecode($refreshToken))->user();
+        return app(\App\Services\TokenService::class)->authenticate(urldecode($refreshToken), ['refresh']);
     }
 
     /**
@@ -203,7 +203,7 @@ class ExternalAuthController extends Controller
         // Find the user we're linking to
         $user = User::find($linkingUserId);
 
-        if (!$user) {
+        if (!$user || !$user->active) {
             return redirect('/')->with('error', 'User not found');
         }
 
@@ -251,7 +251,7 @@ class ExternalAuthController extends Controller
     {
         $user = User::find($linkedAuth->user_id);
 
-        if (!$user) {
+        if (!$user || !$user->active) {
             return redirect('/')->with('error', 'User not found');
         }
 
@@ -267,10 +267,15 @@ class ExternalAuthController extends Controller
      */
     private function loginWithEmail($provider, $authProviderUser)
     {
+        // Neither automatic linking nor provisioning may trust an unverified address.
+        // Existing explicitly linked subjects can still sign in through their stable sub.
+        if ($authProviderUser->verified !== true) {
+            return redirect('/')->with('error', 'A verified email is required. Please link this provider from your account profile.');
+        }
         $user = null;
 
         // If trust_email is enabled, try to find a user with the same email
-        if ($provider->trust_email) {
+        if ($provider->trust_email && $authProviderUser->verified === true) {
             $user = User::where('email', $authProviderUser->email)->first();
         }
 
@@ -285,7 +290,7 @@ class ExternalAuthController extends Controller
         }
 
         // If still no user, return error
-        if (!$user) {
+        if (!$user || !$user->active) {
             return redirect('/')->with('error', 'Account not found. Please check that you have linked your account to this provider.');
         }
 
@@ -375,12 +380,8 @@ class ExternalAuthController extends Controller
      */
     private function createAuthCookieAndRedirect($user)
     {
-        // Set refresh token with 24 hour expiry
-        $twentyFourHours = 60 * 60 * 24;
-        $refreshToken = Auth::setTTL($twentyFourHours)->tokenById($user->id);
-
-        // Create HTTP-only secure cookie with refresh token
-        $cookie = cookie('refresh_token', urlencode($refreshToken), $twentyFourHours, null, null, true, true);
+        abort_unless($user->active, 403, 'Account unavailable');
+        $cookie = app(\App\Services\TokenService::class)->refreshCookie($user);
 
         // Redirect to home with the cookie
         return redirect('/')->withCookie($cookie);

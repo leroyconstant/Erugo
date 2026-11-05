@@ -4,7 +4,7 @@ This fork requires patched PHP: 8.3.36+, 8.4.27+, or 8.5.12+ within each minor b
 
 The lock file upgrades Laravel 11.42.1 to 12.71.0, Twig 3.20.0 to 3.30.0, Symfony components to 7.4, and the remaining Composer dependencies. This addresses the cited Laravel file-validation bypass, Twig code-injection issue, and known advisories found during dependency resolution. The unused `kovah/laravel-socialite-oidc` dependency was removed because it only supports Laravel <=11; Erugo's OIDC implementation continues to use `jumbojett/openid-connect-php`.
 
-Production installs exclude development dependencies and fail if Composer reports an advisory. The production Compose file pulls `ghcr.io/leroyconstant/erugo:latest`. GitHub Actions publishes AMD64 and ARM64 images only after the PHP tests and Docker startup checks pass on `main`. Each publication also has an immutable source-commit tag `sha-<full commit SHA>`.
+Production installs exclude development dependencies and fail if Composer reports an advisory. The production Compose file pulls `ghcr.io/leroyconstant/erugo:latest`. GitHub Actions publishes AMD64 and ARM64 images only after the PHP tests and Docker startup checks pass on `main`. Each publication also has a source-commit tag `sha-<full commit SHA>`.
 
 ## Upgrade an existing Docker installation
 
@@ -51,3 +51,17 @@ To build locally instead of using GHCR:
 ```sh
 docker build --pull -f docker/alpine/Dockerfile -t erugo-local:security .
 ```
+
+## Application security hardening
+
+The second security update restricts all settings reads to administrators, checks account state and the current password/role fingerprint when accepting JWTs, and limits login/verification attempts. Password, role or account-state changes revoke existing access and refresh tokens. Refresh cookies are HttpOnly, SameSite=Lax, Secure by default, and last 24 hours. Email-based SSO account matching and automatic provisioning require an explicitly verified email. Providers that do not attest email verification can still be explicitly linked from an existing authenticated account profile.
+
+Existing sessions must sign in again after this update; old JWTs have no session fingerprint. Previously issued guest invitation links also need to be regenerated. Newly issued invitation links remain valid for their invite period. No database migration or storage reset is required for this token change.
+
+Use HTTPS for the application. For isolated HTTP development only, explicitly set `ERUGO_SECURE_COOKIES=false`; otherwise the browser will correctly refuse to send the secure refresh cookie over HTTP.
+
+Every tus upload request now requires the owner's Bearer token, including HEAD/resume, PATCH and DELETE. Concatenation and deferred-length uploads are refused to prevent cross-owner references and unknown-length quota bypasses. Raw download from tusd is disabled; completed share downloads continue through Laravel. Docker exposes the authenticated hook endpoint only on a loopback listener. A random per-container hook secret is generated at startup; no additional Compose variable is required. Non-Docker installations must configure the same authenticated internal hook and upload authorization gateway before upgrading.
+
+ZIP bundles are checked before extraction: normalized relative paths, no symlinks, bounded entry count, uncompressed size and compression ratio, bounded manifest size and streamed extraction of manifest files only. Sizes are measured from the actual files rather than trusted client metadata. Defaults are 10,000 entries, 4 GiB expanded (also capped by the configured share limit and free disk space), and ratio 1,000. Administrators can adjust `ERUGO_BUNDLE_MAX_FILES`, `ERUGO_BUNDLE_MAX_BYTES` and `ERUGO_BUNDLE_MAX_RATIO` when necessary.
+
+The JavaScript lockfile is updated and the Docker build audits npm dependencies as well as Composer dependencies. CI tests the real Caddy/Laravel/tusd boundary, including cross-user denial, upload resume/deletion and nested ZIP bundles.

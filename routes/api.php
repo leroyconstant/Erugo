@@ -44,16 +44,16 @@ Route::group([], function ($router) {
 
     //auth
     Route::group(['prefix' => 'auth'], function ($router) {
-        Route::post('login', [AuthController::class, 'login'])->name('auth.login');
-        Route::post('refresh', [AuthController::class, 'refresh'])->name('auth.refresh');
+        Route::post('login', [AuthController::class, 'login'])->name('auth.login')->middleware('throttle:login');
+        Route::post('refresh', [AuthController::class, 'refresh'])->name('auth.refresh')->middleware('throttle:auth-sensitive');
         Route::post('logout', [AuthController::class, 'logout'])->name('auth.logout');
-        Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->name('auth.forgotPassword');
-        Route::post('reset-password', [AuthController::class, 'resetPassword'])->name('auth.resetPassword');
+        Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->name('auth.forgotPassword')->middleware('throttle:auth-sensitive');
+        Route::post('reset-password', [AuthController::class, 'resetPassword'])->name('auth.resetPassword')->middleware('throttle:auth-sensitive');
         
         // Self-registration routes
-        Route::post('register', [SelfRegistrationController::class, 'register'])->name('auth.register');
-        Route::post('verify-email', [SelfRegistrationController::class, 'verifyEmail'])->name('auth.verifyEmail');
-        Route::post('resend-verification', [SelfRegistrationController::class, 'resendCode'])->name('auth.resendVerification');
+        Route::post('register', [SelfRegistrationController::class, 'register'])->name('auth.register')->middleware('throttle:auth-sensitive');
+        Route::post('verify-email', [SelfRegistrationController::class, 'verifyEmail'])->name('auth.verifyEmail')->middleware('throttle:auth-sensitive');
+        Route::post('resend-verification', [SelfRegistrationController::class, 'resendCode'])->name('auth.resendVerification')->middleware('throttle:auth-sensitive');
         Route::get('registration-settings', [SelfRegistrationController::class, 'getSettings'])->name('auth.registrationSettings');
     });
 
@@ -109,7 +109,7 @@ Route::group([], function ($router) {
     });
 
     //read settings [auth]
-    Route::group(['prefix' => 'settings', 'middleware' => ['auth']], function ($router) {
+    Route::group(['prefix' => 'settings', 'middleware' => ['auth', Admin::class]], function ($router) {
         //read a setting by its key
         Route::get('/{key}', [SettingsController::class, 'read'])->name('settings.read');
         //read settings by their group
@@ -218,6 +218,7 @@ Route::post('/tusd-hooks', [TusdHooksController::class, 'handleHook'])->name('tu
 
 // Upload routes (now using tusd for actual uploads)
 Route::group(['prefix' => 'uploads', 'middleware' => ['auth']], function ($router) {
+    Route::get('/authorize', [UploadsController::class, 'authorizeTus'])->name('uploads.authorize');
     // Verify if an upload session is still valid (for tus resume functionality)
     Route::get('/verify/{uploadId}', [UploadsController::class, 'verifyUpload'])->name('uploads.verify');
     // Create a share from uploaded files (after tusd uploads complete)

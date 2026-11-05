@@ -21,29 +21,10 @@ class TusdHooksController extends Controller
      */
     public function handleHook(Request $request)
     {
-        // Security: Verify request is from internal network (tusd process)
-        $clientIp = $request->ip();
-        $allowedNetworks = [
-            '172.', // Docker bridge networks
-            '10.',  // Private network
-            '192.168.', // Private network
-            '127.0.0.1', // Localhost IPv4
-            '::1', // Localhost IPv6
-        ];
-        
-        $isAllowed = false;
-        foreach ($allowedNetworks as $network) {
-            if (str_starts_with($clientIp, $network)) {
-                $isAllowed = true;
-                break;
-            }
-        }
-        
-        if (!$isAllowed) {
-            Log::warning('tusd hook rejected: unauthorized source IP', [
-                'ip' => $clientIp
-            ]);
-            return response()->json(['ok' => false, 'message' => 'Forbidden'], 403);
+        $expected = (string) config('erugo.tusd_hook_secret');
+        $supplied = (string) $request->header('X-Erugo-Hook-Secret', '');
+        if (strlen($expected) < 32 || !hash_equals($expected, $supplied)) {
+            return response()->json(['message' => 'Forbidden'], 403);
         }
 
         $payload = $request->all();
@@ -76,6 +57,12 @@ class TusdHooksController extends Controller
     protected function preCreate(Request $request, array $payload)
     {
         try {
+            $upload = $payload['Event']['Upload'] ?? [];
+            $headers = $payload['Event']['HTTPRequest']['Header'] ?? [];
+            if (!empty($upload['IsPartial']) || !empty($upload['IsFinal']) || !empty($upload['PartialUploads'])
+                || !empty($upload['SizeIsDeferred']) || isset($headers['Upload-Concat']) || isset($headers['Upload-Defer-Length'])) {
+                return response()->json(['message' => 'Unsupported upload extension'], 400);
+            }
             // Extract authorization header from the upload request metadata
             $authHeader = $payload['Event']['HTTPRequest']['Header']['Authorization'][0] ?? null;
 
@@ -91,9 +78,9 @@ class TusdHooksController extends Controller
             $token = str_replace('Bearer ', '', $authHeader);
 
             // Validate the JWT token
-            $user = JWTAuth::setToken($token)->authenticate();
+            $user = app(\App\Services\TokenService::class)->authenticate($token);
 
-            if (!$user) {
+            if (!$user || $user->must_change_password) {
                 Log::warning('tusd pre-create: Invalid token');
                 return response()->json([
                     'ok' => false,
@@ -218,7 +205,11 @@ class TusdHooksController extends Controller
             // Extract authorization header to get user
             $authHeader = $payload['Event']['HTTPRequest']['Header']['Authorization'][0] ?? null;
             $token = str_replace('Bearer ', '', $authHeader);
-            $user = JWTAuth::setToken($token)->authenticate();
+            $user = app(\App\Services\TokenService::class)->authenticate($token);
+
+            if (!$user || $user->must_change_password) {
+                return response()->json(['message' => 'Unauthorized'], 401);
+            }
 
             // Get metadata from the upload
             $metadata = $payload['Event']['Upload']['MetaData'] ?? [];
@@ -371,106 +362,27 @@ class TusdHooksController extends Controller
                 mkdir($extractDir, 0755, true);
             }
 
-            // Open and extract the zip
-            $zip = new \ZipArchive();
-            $result = $zip->open($bundlePath);
-
-            if ($result !== true) {
-                Log::error('tusd post-finish: Failed to open bundle zip', [
-                    'upload_id' => $uploadId,
-                    'error_code' => $result
-                ]);
-                $session->status = 'failed';
-                $session->save();
-                return response()->json(['ok' => true]);
+            $maxSize = app(SettingsService::class)->getMaxUploadSize();
+            if ($maxSize !== null) {
+                $others = UploadSession::where('user_id', $session->user_id)
+                    ->where('id', '!=', $session->id)->whereIn('status', ['pending', 'complete'])->sum('filesize');
+                $maxSize = max(0, $maxSize - $others);
             }
-
-            // Read the manifest
-            $manifestContent = $zip->getFromName('__erugo_manifest__.json');
-            if (!$manifestContent) {
-                Log::error('tusd post-finish: Bundle manifest not found', [
-                    'upload_id' => $uploadId
-                ]);
-                $zip->close();
-                $session->status = 'failed';
-                $session->save();
-                return response()->json(['ok' => true]);
-            }
-
-            $manifest = json_decode($manifestContent, true);
-            if (!$manifest || !isset($manifest['files'])) {
-                Log::error('tusd post-finish: Invalid bundle manifest', [
-                    'upload_id' => $uploadId
-                ]);
-                $zip->close();
-                $session->status = 'failed';
-                $session->save();
-                return response()->json(['ok' => true]);
-            }
-
-            // Extract all files
-            $zip->extractTo($extractDir);
-            $zip->close();
-
-            // Delete the manifest file from extracted directory
-            $manifestPath = $extractDir . '/__erugo_manifest__.json';
-            if (file_exists($manifestPath)) {
-                unlink($manifestPath);
-            }
-
-            // Create File records for each file in the manifest
+            $bundleFiles = app(\App\Services\BundleExtractor::class)->extract($bundlePath, $extractDir, $maxSize);
             $fileIds = [];
-            foreach ($manifest['files'] as $fileInfo) {
-                $filePath = $fileInfo['path'];
-                
-                // Sanitize the file path to prevent path traversal attacks
-                // Remove ../ sequences and normalize path
-                $safePath = $this->sanitizeBundlePath($filePath);
-                if ($safePath === null) {
-                    Log::warning('tusd post-finish: Skipping file with dangerous path', [
-                        'upload_id' => $uploadId,
-                        'file_path' => $filePath
-                    ]);
-                    continue;
-                }
-                
-                $extractedFilePath = $extractDir . '/' . $safePath;
-                
-                // Verify the resolved path is within the extraction directory
-                $resolvedPath = realpath($extractedFilePath);
-                $resolvedExtractDir = realpath($extractDir);
-                
-                if ($resolvedPath === false || $resolvedExtractDir === false ||
-                    strpos($resolvedPath, $resolvedExtractDir) !== 0) {
-                    Log::warning('tusd post-finish: Path traversal attempt in bundle', [
-                        'upload_id' => $uploadId,
-                        'file_path' => $filePath,
-                        'resolved_path' => $resolvedPath
-                    ]);
-                    continue;
-                }
-
-                if (!file_exists($extractedFilePath)) {
-                    Log::warning('tusd post-finish: Bundle file not found after extraction', [
-                        'upload_id' => $uploadId,
-                        'file_path' => $safePath
-                    ]);
-                    continue;
-                }
-
-                $sanitizedFilename = FileHelper::sanitizeFilename($fileInfo['originalName']);
-
-                // Create file record - store relative path for bundle files
+            $expandedSize = 0;
+            foreach ($bundleFiles as $fileInfo) {
                 $file = File::create([
-                    'name' => $sanitizedFilename,
+                    'name' => FileHelper::sanitizeFilename($fileInfo['originalName']),
                     'original_name' => $fileInfo['originalName'],
-                    'type' => $fileInfo['type'] ?? 'application/octet-stream',
+                    'type' => $fileInfo['type'],
                     'size' => $fileInfo['size'],
-                    'temp_path' => 'uploads/' . $uploadId . '_extracted/' . $safePath
+                    'temp_path' => 'uploads/' . $uploadId . '_extracted/' . $fileInfo['path'],
                 ]);
-
+                $expandedSize += $fileInfo['size'];
                 $fileIds[] = $file->id;
             }
+            $session->filesize = $expandedSize;
 
             // Update session with bundle info
             // We store the file IDs as JSON in a special way - the first file_id points to a pseudo-record
@@ -499,6 +411,7 @@ class TusdHooksController extends Controller
             return response()->json(['ok' => true]);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\File::deleteDirectory($extractDir);
             Log::error('tusd post-finish: Bundle extraction error', [
                 'upload_id' => $uploadId,
                 'error' => $e->getMessage(),

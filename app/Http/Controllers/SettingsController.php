@@ -31,7 +31,7 @@ class SettingsController extends Controller
                 }
 
                 $setting->key = $settingData['key'];
-                $setting->previous_value = $setting->value;
+                $setting->previous_value = $setting->key === 'smtp_password' ? null : $setting->value;
                 $setting->value = $settingData['value'];
                 $setting->save();
 

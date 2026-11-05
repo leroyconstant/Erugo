@@ -16,7 +16,7 @@ FROM node:24-alpine3.24 AS node
 WORKDIR /app
 COPY . .
 
-RUN npm ci && \
+RUN npm ci && npm audit --audit-level=moderate && \
     npx vite build \
     && rm -rf node_modules
 

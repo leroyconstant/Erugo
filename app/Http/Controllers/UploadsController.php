@@ -20,6 +20,39 @@ use Illuminate\Support\Facades\Log;
 
 class UploadsController extends Controller
 {
+  /** Called by Caddy before forwarding any request to tusd. */
+  public function authorizeTus(Request $request)
+  {
+    // The application uses single-owner uploads with a known length. Do not
+    // allow tus extensions to reference other uploads or bypass size checks.
+    if ($request->hasHeader('Upload-Concat') || $request->hasHeader('Upload-Defer-Length')) {
+      return response()->json(['message' => 'Unsupported upload extension'], 400);
+    }
+    $method = $request->header('X-Forwarded-Method', '');
+    $path = parse_url($request->header('X-Forwarded-Uri', ''), PHP_URL_PATH);
+    if (!in_array($method, ['POST', 'HEAD', 'PATCH', 'DELETE', 'OPTIONS'], true)) {
+      return response()->json(['message' => 'Method unavailable'], 405);
+    }
+    if (in_array($path, ['/files', '/files/'], true) && in_array($method, ['POST', 'OPTIONS'], true)) {
+      return response()->noContent();
+    }
+    if (!is_string($path) || !preg_match('~^/files/([a-f0-9]{32})$~D', $path, $matches)) {
+      return response()->json(['message' => 'Upload not found'], 404);
+    }
+    // tusd post-create can complete just after its creation response.
+    for ($attempt = 0; $attempt < 5; $attempt++) {
+      $session = UploadSession::where('upload_id', $matches[1])->first();
+      if ($session) {
+        break;
+      }
+      usleep(100000);
+    }
+    if (!$session || (int) $session->user_id !== (int) $request->user()->id) {
+      return response()->json(['message' => 'Upload not found'], 404);
+    }
+    return response()->noContent();
+  }
+
   /**
    * Verify if an upload session exists and is valid for resuming
    * This is used by the frontend to check if a previous tus upload can be resumed
@@ -373,7 +406,7 @@ class UploadsController extends Controller
       Auth::logout();
       $user->delete();
 
-      $cookie = cookie('refresh_token', '', 0, null, null, false, true);
+      $cookie = app(\App\Services\TokenService::class)->forgetCookie();
       return response()->json([
         'status' => 'success',
         'message' => 'Share created',

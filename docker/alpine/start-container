@@ -28,6 +28,10 @@ echo "================================================"
 export APP_URL=/
 export ASSET_URL=/
 
+# A per-container secret authenticates hooks on the loopback-only listener.
+export ERUGO_TUSD_HOOK_SECRET="${ERUGO_TUSD_HOOK_SECRET:-$(php -r 'echo bin2hex(random_bytes(32));')}"
+
+
 # Increment patch version to account for Komodo's pre-increment tagging
 # Handles formats like: 0.0.18, v1.2.3, RC 0.0.18
 if [ -n "$APP_VERSION" ] && [ "$APP_VERSION" != "unknown" ]; then
