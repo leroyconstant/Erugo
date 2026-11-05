@@ -421,7 +421,28 @@
       "description": "Informations sur votre installation Erugo.",
       "title": "À propos d'Erugo",
       "version": "Version",
-      "visit_website": "Visitez erugo.app"
+      "visit_website": "Visiter le site officiel",
+      "built_with": "Technologies utilisées",
+      "created_by": "Créé et maintenu par",
+      "credits": {
+        "laravel": "Framework PHP",
+        "tus": "Envoi de fichiers avec reprise après interruption",
+        "vue": "Framework d’interface utilisateur"
+      },
+      "database": "Base de données",
+      "discord": "Rejoindre la communauté Discord",
+      "documentation": "Consulter la documentation",
+      "donate": "Soutenir le développement",
+      "intro": "Erugo est une plateforme libre et gratuite de partage de fichiers à héberger sur votre serveur. Sans suivi ni collecte de statistiques, elle permet de partager simplement vos fichiers en respectant la confidentialité de vos données.",
+      "license": "Licence",
+      "loading": "Chargement des informations système…",
+      "max_upload": "Taille maximale des envois",
+      "of": "sur",
+      "storage": "Espace de stockage",
+      "support_cta": "Si Erugo vous est utile, vous pouvez",
+      "support_link": "soutenir son développement",
+      "system_info": "Informations système",
+      "visit_github": "Voir le code sur GitHub"
     },
     "account": {
       "change_password": "Modifier mon mot de passe",
