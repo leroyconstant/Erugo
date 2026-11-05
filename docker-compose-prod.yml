@@ -1,9 +1,6 @@
 services:
   app:
-    build:
-      context: .
-      dockerfile: docker/alpine/Dockerfile
-    image: erugo-local:security
+    image: ghcr.io/leroyconstant/erugo:latest
     restart: unless-stopped
     environment:
       APP_ENV: production
