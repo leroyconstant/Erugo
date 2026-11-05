@@ -57,7 +57,7 @@ mkdir -p /var/www/html/storage
 if [ ! -f /var/www/html/storage/.setup-lock ]; then
     echo "[First time setup] Copying storage skeleton contents..."
     # Preserve existing uploads, keys and database if the marker was lost.
-    cp -rn /var/www/html/storage_skell/. /var/www/html/storage/
+    cp -rn /var/www/html/storage_skell/* /var/www/html/storage/
     touch /var/www/html/storage/.setup-lock
 else
     echo "Setup already completed, skipping..."
@@ -82,6 +82,20 @@ else
         cp /var/www/html/storage_skell/app/public/images/default-background.jpg /var/www/html/storage/app/public/images/
     fi
 fi
+
+# Empty directories may not be present in a Docker build context.
+# Create them explicitly on both fresh installations and upgrades.
+mkdir -p /var/www/html/storage/app/private \
+    /var/www/html/storage/app/uploads \
+    /var/www/html/storage/app/shares \
+    /var/www/html/storage/app/public/images \
+    /var/www/html/storage/app/backgrounds/cache/thumbs \
+    /var/www/html/storage/framework/cache/data \
+    /var/www/html/storage/framework/sessions \
+    /var/www/html/storage/framework/views \
+    /var/www/html/storage/framework/testing \
+    /var/www/html/storage/logs \
+    /var/www/html/storage/templates
 
 # Always ensure correct permissions on storage directory
 echo "Setting storage permissions..."
