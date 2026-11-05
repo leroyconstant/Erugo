@@ -1,4 +1,82 @@
-[![Docker Pulls](https://img.shields.io/docker/pulls/wardy784/erugo)](https://hub.docker.com/r/wardy784/erugo) ![GitHub Repo stars](https://img.shields.io/github/stars/deanward/erugo) ![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/deanward/erugo) ![GitHub Issues or Pull Requests](https://img.shields.io/github/issues-closed/deanward/erugo) ![GitHub commits since latest release](https://img.shields.io/github/commits-since/deanward/erugo/latest) [![license](https://img.shields.io/github/license/dec0dOS/amazing-github-template.svg)](LICENSE)
+# Erugo — fork de leroyconstant
+
+Fork de [ErugoOSS/Erugo](https://github.com/ErugoOSS/Erugo), plateforme de partage de fichiers auto-hébergée en PHP/Laravel et Vue.js. Ce fork regroupe les corrections de sécurité, la publication Docker sur GHCR et les ajustements de traduction décrits ci-dessous. Le projet original et sa licence MIT sont conservés.
+
+[![Vérifications et publication](https://github.com/leroyconstant/Erugo/actions/workflows/security.yml/badge.svg)](https://github.com/leroyconstant/Erugo/actions/workflows/security.yml)
+
+## Modifications du fork
+
+État documenté au **5 novembre 2026**. Les liens pointent vers les commits intégrés à `main`.
+
+| Commit | Modification | Effet concret |
+| --- | --- | --- |
+| [962fed3](https://github.com/leroyconstant/Erugo/commit/962fed304871186104c815fda794888eff84c8d8) | Mise à jour du runtime PHP et des dépendances ; fiabilisation du démarrage | Image Alpine 3.24 avec PHP 8.3.36 minimum, dépendances actualisées, désactivation du suivi natif des envois par les sessions PHP et initialisation des répertoires persistants et de SQLite avant les migrations. |
+| [ce93a4b](https://github.com/leroyconstant/Erugo/commit/ce93a4bb6a8099300d74d804004479e4c28282e1) | Publication sur GitHub Container Registry | Images `linux/amd64` et `linux/arm64`, publiées après les vérifications PHP et conteneur. |
+| [37b9feb](https://github.com/leroyconstant/Erugo/commit/37b9febe6fef2ea89de9de980f029d3519afa4f6) | Ajustement de la chaîne de publication | Limites de durée des tâches CI et relance de la publication GHCR. |
+| [26d38dd](https://github.com/leroyconstant/Erugo/commit/26d38ddc2207cb1497fc934573b921170f1682fa) | Contrôles d’accès, sessions, envois et archives ZIP | Paramètres réservés aux administrateurs, contrôle de propriété des envois tus, hooks internes protégés, jetons de types distincts, cookies de renouvellement protégés, vérification de l’adresse e-mail pour le rattachement et la création automatiques SSO, extraction ZIP bornée et protection contre la traversée de chemins. Les extensions tus de concaténation et de longueur différée sont refusées pour éviter le contournement des contrôles. |
+| [1e4ef16](https://github.com/leroyconstant/Erugo/commit/1e4ef16439580f3ef539bbf42b0206755ed0fb88) | Révocation durable des jetons | Une réactivation de compte ou un changement de rôle ne rend plus valides des jetons déjà révoqués. |
+| [4bb0f33](https://github.com/leroyconstant/Erugo/commit/4bb0f33e73d12167fe4426b6ee2ddfec1a179362) | Traductions françaises de la page « À propos de » | Les 21 clés utilisées par la page disposent de libellés français, notamment pour les boutons, les crédits et les informations système. |
+
+Les vérifications de la version publiée ont réussi : tests sur PHP 8.3.36 et 8.4.27, audit Composer, construction et démarrage du conteneur, tests des contrôles d’accès et des envois à travers Caddy/tusd. La construction des ressources frontend et l’audit npm font également partie de la construction Docker. Ces contrôles ne constituent pas une garantie d’absence de vulnérabilité ; les connexions SSO externes et l’envoi SMTP réel nécessitent une validation dans votre environnement.
+
+Voir aussi les [notes de mise à niveau de sécurité](docs/SECURITY-UPGRADE.md) et l’[historique complet des commits](https://github.com/leroyconstant/Erugo/commits/main/).
+
+## Image Docker publiée
+
+Dernière image vérifiée lors de cette mise à jour : **5 novembre 2026**, pour **AMD64 et ARM64**.
+
+- Registre : [ghcr.io/leroyconstant/erugo](https://github.com/leroyconstant/Erugo/pkgs/container/erugo).
+- Code source : [`4bb0f33e73d12167fe4426b6ee2ddfec1a179362`](https://github.com/leroyconstant/Erugo/commit/4bb0f33e73d12167fe4426b6ee2ddfec1a179362).
+- Tag lié au commit : `ghcr.io/leroyconstant/erugo:sha-4bb0f33e73d12167fe4426b6ee2ddfec1a179362`.
+- Digest de l’index multiarchitecture : `sha256:12a01fa2acdc5c2504437243c80113601419fca3fbb1151928ac24157b9376b2`.
+- Tag de suivi : `ghcr.io/leroyconstant/erugo:latest`. Il évolue après les publications validées de `main` ; le digest ci-dessus reste une référence fixe.
+
+Le SHA du commit identifie le code source ; le digest `sha256:` identifie l’image publiée. Pour installer exactement cette version, utilisez le digest :
+
+```yaml
+services:
+  app:
+    image: ghcr.io/leroyconstant/erugo@sha256:12a01fa2acdc5c2504437243c80113601419fca3fbb1151928ac24157b9376b2
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+    volumes:
+      - ./erugo-storage:/var/www/html/storage
+    ports:
+      - "9998:80"
+```
+
+Au premier démarrage :
+
+```sh
+docker compose pull
+docker compose up -d
+```
+
+Accédez ensuite à `http://ADRESSE_DU_SERVEUR:9998` pour la configuration initiale. Pour suivre les prochaines publications, remplacez la valeur `image` par `ghcr.io/leroyconstant/erugo:latest`. Le fichier [docker-compose-prod.yml](docker-compose-prod.yml) fournit cette variante, avec un chemin de stockage et un port paramétrables.
+
+### Mettre à jour une installation existante
+
+1. Sauvegardez le répertoire de stockage persistant et votre fichier Compose. Avec SQLite, arrêtez le service pendant la sauvegarde pour conserver une copie cohérente de la base ; avec une base externe, sauvegardez-la également.
+2. Remplacez uniquement la référence `image` dans votre Compose par celle ci-dessus. Conservez le chemin du volume existant et vos paramètres de déploiement. Si vous utilisez un ancien digest, un simple `pull` ne le fera pas évoluer.
+3. Dans le répertoire de votre Compose, appliquez la mise à jour :
+
+```sh
+docker compose pull
+docker compose up -d
+docker compose ps
+docker compose logs --tail=100 app
+```
+
+Le conteneur applique les migrations au démarrage. Vérifiez ensuite la connexion, l’envoi et le téléchargement d’un fichier. Rechargez l’interface avec **Ctrl + F5** pour charger les nouvelles traductions. N’utilisez pas `docker compose down -v` pour une mise à jour : les données persistantes doivent être conservées.
+
+Les commandes ci-dessus supposent un fichier Compose standard dans le répertoire courant. Pour utiliser directement le fichier du dépôt, ajoutez `-f docker-compose-prod.yml` à chaque commande `docker compose`.
+
+## Présentation du projet original
+
+La présentation et les crédits ci-dessous proviennent du projet Erugo original. Pour déployer ce fork, utilisez les références GHCR documentées ci-dessus.
+
 
 [![Discord Banner 2](https://img.shields.io/badge/Join%20Us%20On%20Discord-8A2BE2)](https://discord.gg/M74X2wmqY8)
 
@@ -35,7 +113,7 @@ You can use the example docker-compose.yaml below to run Erugo in a container.
 ```yaml
 services:
   app:
-    image: wardy784/erugo:latest
+    image: ghcr.io/leroyconstant/erugo:latest
     restart: unless-stopped
     volumes:
       - ./erugo-storage:/var/www/html/storage # Use a dedicated folder
