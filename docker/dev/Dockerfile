@@ -1,5 +1,5 @@
 # Development image based on Alpine - matches production architecture
-FROM alpine:3.19
+FROM alpine:3.24
 
 LABEL maintainer="Dean Ward"
 
@@ -13,8 +13,8 @@ ENV SUPERVISOR_PHP_FPM_COMMAND="/usr/sbin/php-fpm83 -F"
 ENV SUPERVISOR_CADDY_COMMAND="/usr/sbin/caddy run --config /etc/caddy/Caddyfile"
 ENV SUPERVISOR_PHP_USER="erugo"
 
-# Enable community repository for PHP packages
-RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.19/community" >> /etc/apk/repositories
+# Use the maintained Alpine community repository for PHP packages.
+RUN sed -i 's|http://|https://|g' /etc/apk/repositories
 
 # Install production requirements + development tools
 RUN apk add --no-cache \
@@ -24,7 +24,7 @@ RUN apk add --no-cache \
     supervisor \
     cronie \
     ffmpeg \
-    php83 \
+    "php83>=8.3.36" \
     php83-pdo_pgsql \
     php83-pdo_sqlite \
     php83-gd \
@@ -52,6 +52,7 @@ RUN apk add --no-cache \
     php83-simplexml \
     php83-xmlwriter \
     php83-sodium \
+    php83-iconv \
     tzdata \
     libcap \
     zip \
@@ -62,6 +63,7 @@ RUN apk add --no-cache \
     nodejs \
     npm \
     && ln -s /usr/bin/php83 /usr/bin/php \
+    && php -r 'exit(version_compare(PHP_VERSION, "8.3.36", ">=") ? 0 : 1);' \
     && rm -rf /var/cache/apk/*
 
 # Install Composer

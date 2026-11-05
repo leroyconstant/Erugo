@@ -1,8 +1,14 @@
 services:
   app:
-    image: wardy784/erugo:latest
+    build:
+      context: .
+      dockerfile: docker/alpine/Dockerfile
+    image: erugo-local:security
     restart: unless-stopped
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
     volumes:
-      - /Users/dean/erugo-storage/storage:/var/www/html/storage
+      - ${ERUGO_STORAGE_PATH:-./erugo-storage}:/var/www/html/storage
     ports:
-      - "9998:80"
+      - "${APP_PORT:-9998}:80"

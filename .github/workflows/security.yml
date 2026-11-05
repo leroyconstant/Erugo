@@ -1,0 +1,74 @@
+name: Security and compatibility
+
+on:
+  push:
+    branches: [main, 'codex/security-*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  php:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.3.36', '8.4.27']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, dom, xml, xmlwriter, pdo_sqlite, curl, sodium
+          coverage: none
+          tools: composer:v2
+      - run: composer validate --strict
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: composer audit --locked
+      - run: vendor/bin/phpunit
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Validate production Compose
+        run: docker compose -f docker-compose-prod.yml config --quiet
+      - name: Build production image from the fork
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/alpine/Dockerfile
+          load: true
+          tags: erugo-security:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Verify actual runtime and upload-progress protection
+        run: |
+          docker run --rm --entrypoint php erugo-security:test -r '
+            if (version_compare(PHP_VERSION, "8.3.36", "<") || ini_get("session.upload_progress.enabled")) {
+              fwrite(STDERR, "Unsafe PHP runtime or upload-progress configuration\n");
+              exit(1);
+            }
+            echo PHP_VERSION, "\n";
+          '
+      - name: Start application with a fresh disposable database
+        run: |
+          docker run -d --name erugo-security -p 127.0.0.1:9998:80 \
+            -e APP_ENV=production -e APP_DEBUG=false erugo-security:test
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:9998/api/health; then
+              curl -fsS http://127.0.0.1:9998/ > /dev/null
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs erugo-security
+          exit 1
+      - name: Container logs
+        if: failure()
+        run: docker logs erugo-security || true
+      - name: Cleanup
+        if: always()
+        run: docker rm -f erugo-security || true
