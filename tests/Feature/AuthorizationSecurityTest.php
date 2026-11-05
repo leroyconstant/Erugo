@@ -144,6 +144,11 @@ class AuthorizationSecurityTest extends TestCase
         $method->invoke($controller, $provider, $identity);
         $this->assertFalse(auth('api')->check());
         $this->assertDatabaseMissing('user_auth_provider', ['user_id' => $admin->id]);
+        $provider->allow_registration = true;
+        $identity->email = 'unverified-new@example.test';
+        $method->invoke($controller, $provider, $identity);
+        $this->assertDatabaseMissing('users', ['email' => $identity->email]);
+        $identity->email = $admin->email;
         $identity->verified = true;
         $method->invoke($controller, $provider, $identity);
         $this->assertDatabaseHas('user_auth_provider', ['user_id' => $admin->id]);

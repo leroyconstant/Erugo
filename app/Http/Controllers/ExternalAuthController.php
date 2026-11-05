@@ -267,6 +267,11 @@ class ExternalAuthController extends Controller
      */
     private function loginWithEmail($provider, $authProviderUser)
     {
+        // Neither automatic linking nor provisioning may trust an unverified address.
+        // Existing explicitly linked subjects can still sign in through their stable sub.
+        if ($authProviderUser->verified !== true) {
+            return redirect('/')->with('error', 'A verified email is required. Please link this provider from your account profile.');
+        }
         $user = null;
 
         // If trust_email is enabled, try to find a user with the same email

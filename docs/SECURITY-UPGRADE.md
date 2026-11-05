@@ -54,7 +54,7 @@ docker build --pull -f docker/alpine/Dockerfile -t erugo-local:security .
 
 ## Application security hardening
 
-The second security update restricts all settings reads to administrators, checks account state and the current password/role fingerprint when accepting JWTs, and limits login/verification attempts. Password, role or account-state changes revoke existing access and refresh tokens. Refresh cookies are HttpOnly, SameSite=Lax, Secure by default, and last 24 hours. Email-based SSO account matching requires an explicitly verified email.
+The second security update restricts all settings reads to administrators, checks account state and the current password/role fingerprint when accepting JWTs, and limits login/verification attempts. Password, role or account-state changes revoke existing access and refresh tokens. Refresh cookies are HttpOnly, SameSite=Lax, Secure by default, and last 24 hours. Email-based SSO account matching and automatic provisioning require an explicitly verified email. Providers that do not attest email verification can still be explicitly linked from an existing authenticated account profile.
 
 Existing sessions must sign in again after this update; old JWTs have no session fingerprint. Previously issued guest invitation links also need to be regenerated. Newly issued invitation links remain valid for their invite period. No database migration or storage reset is required for this token change.
 
