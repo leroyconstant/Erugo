@@ -992,6 +992,7 @@
     },
     "created": "Créé",
     "data_loading": "Chargement...",
+    "load_failed": "Impossible de charger ce partage. Rechargez la page pour réessayer.",
     "deleted": "Supprimé",
     "deletes": "Suppression",
     "download": {

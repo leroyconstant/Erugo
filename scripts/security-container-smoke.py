@@ -121,6 +121,12 @@ status, _, body = request("POST", "/api/uploads/create-share-from-uploads", {
 }, owner)
 assert status == 200, (status, body)
 share_id = json.loads(body)["data"]["share"]["long_id"]
+# Public share metadata must be available in a fresh browser without a token or cookie.
+status, _, body = request("GET", "/api/shares/" + share_id)
+assert status == 200, (status, body)
+public_share = json.loads(body)["data"]["share"]
+assert public_share["password_protected"] is True
+assert public_share["file_count"] == 2
 assert request("GET", "/api/shares/" + share_id + "/download/file/folder/small.txt")[0] == 401
 for attempt in range(30):
     status, _, body = request("POST", "/api/shares/" + share_id + "/download", {"password": "review-share-password"})

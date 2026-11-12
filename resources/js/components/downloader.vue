@@ -17,6 +17,7 @@ const showFilesCount = ref(5)
 const shareExpired = ref(false)
 const downloadLimitReached = ref(false)
 const shareNotFound = ref(false)
+const shareLoadFailed = ref(false)
 
 //define props
 const props = defineProps({
@@ -47,13 +48,14 @@ const fetchShare = async () => {
     share.value = await getShare(props.downloadShareCode)
     document.title = share.value.name
   } catch (error) {
-    console.log('error', error)
     if (error.message == 'Download limit reached') {
       downloadLimitReached.value = true
     } else if (error.message == 'Share expired') {
       shareExpired.value = true
     } else if (error.message == 'Share not found') {
       shareNotFound.value = true
+    } else {
+      shareLoadFailed.value = true
     }
   }
 }
@@ -236,6 +238,9 @@ const filesByDirectory = computed(() => {
           {{ $t('share.not_found') }}
         </h1>
       </template>
+      <h1 v-else-if="shareLoadFailed" role="alert">
+        {{ $t('share.load_failed', 'Unable to load this share. Please reload the page to try again.') }}
+      </h1>
       <h1 v-else>{{ $t('share.data_loading') }}</h1>
     </template>
   </div>

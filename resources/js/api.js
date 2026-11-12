@@ -964,11 +964,10 @@ export const pruneExpiredShares = async () => {
 }
 
 export const getShare = async (id) => {
-  const response = await fetchWithAuth(`${apiUrl}/api/shares/${id}`, {
-    method: 'GET',
-    headers: {
-      ...addJsonHeader()
-    }
+  // Public share links must work without an account. Same-origin cookies
+  // are still sent for private reverse shares.
+  const response = await fetch(`${apiUrl}/api/shares/${encodeURIComponent(id)}`, {
+    headers: { Accept: 'application/json' }
   })
   const data = await response.json()
   if (!response.ok) {
